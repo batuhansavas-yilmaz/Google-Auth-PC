@@ -16,6 +16,7 @@ class ImportResult:
 
 def extract_migration_accounts(image_paths: list[Path]) -> ImportResult:
     import cv2
+    import numpy as np
 
     accounts: list[Account] = []
     failed_files: list[Path] = []
@@ -28,7 +29,8 @@ def extract_migration_accounts(image_paths: list[Path]) -> ImportResult:
             if not path.is_file():
                 failed_files.append(path)
                 continue
-            image = cv2.imread(str(path))
+            data = path.read_bytes()
+            image = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
             if image is None:
                 failed_files.append(path)
                 continue

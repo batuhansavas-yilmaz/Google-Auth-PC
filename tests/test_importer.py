@@ -97,6 +97,17 @@ def test_corrupt_migration_payload_is_skipped(tmp_path):
     assert result.skipped_payloads == 1
 
 
+def test_non_ascii_path_yields_accounts(tmp_path):
+    path = save_qr(
+        tmp_path / "şifreler.png",
+        build_migration_uri([entry(SECRET_A, "alice@example.com", "Example")]),
+    )
+    result = importer.extract_migration_accounts([path])
+    assert result.accounts == [acc(SECRET_A, "alice@example.com", "Example")]
+    assert result.failed_files == []
+    assert result.skipped_payloads == 0
+
+
 def test_importing_importer_does_not_load_cv2():
     probe = "import sys; import google_auth_pc.importer; assert 'cv2' not in sys.modules"
     completed = subprocess.run(
