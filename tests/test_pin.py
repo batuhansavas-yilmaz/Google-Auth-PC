@@ -31,6 +31,15 @@ def test_verify_without_pin_is_false(tmp_path):
     cfg = Config(tmp_path / "c.json")
     assert pin.verify_pin(cfg, "123456") is False
 
+@pytest.mark.parametrize("iterations", [0, -1, 2**40])
+def test_verify_with_malformed_iterations_is_false(tmp_path, iterations):
+    cfg = Config(tmp_path / "c.json")
+    pin.set_pin(cfg, "123456")
+    stored = dict(cfg.get("pin"))
+    stored["iterations"] = iterations
+    cfg.set("pin", stored)
+    assert pin.verify_pin(cfg, "123456") is False
+
 def test_stored_pin_uses_pbkdf2_spec(tmp_path):
     cfg = Config(tmp_path / "c.json")
     pin.set_pin(cfg, "123456")

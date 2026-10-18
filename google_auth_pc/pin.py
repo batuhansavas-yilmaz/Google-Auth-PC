@@ -37,9 +37,11 @@ def verify_pin(config, pin: str) -> bool:
         salt = base64.b64decode(stored["salt_b64"])
         expected = base64.b64decode(stored["hash_b64"])
         iterations = int(stored["iterations"])
-    except (KeyError, TypeError, ValueError):
+        if iterations < 1:
+            return False
+        digest = _derive(pin, salt, iterations)
+    except (KeyError, TypeError, ValueError, OverflowError):
         return False
-    digest = _derive(pin, salt, iterations)
     return hmac.compare_digest(digest, expected)
 
 
