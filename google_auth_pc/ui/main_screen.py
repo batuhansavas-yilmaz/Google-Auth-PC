@@ -83,6 +83,19 @@ class MainScreen(ctk.CTkFrame):
             font=ctk.CTkFont(size=13, weight="bold"),
         )
         self._add_button.pack(side="left")
+        self._settings_button = ctk.CTkButton(
+            bar,
+            text="Ayarlar",
+            command=self._open_settings,
+            width=74,
+            height=32,
+            corner_radius=8,
+            fg_color=_SECONDARY_FG,
+            hover_color=_SECONDARY_HOVER,
+            text_color=_SECONDARY_TEXT,
+            font=ctk.CTkFont(size=12),
+        )
+        self._settings_button.pack(side="left", padx=(8, 0))
 
         self._list = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self._list.pack(fill="both", expand=True, padx=6, pady=(0, 6))
@@ -101,6 +114,9 @@ class MainScreen(ctk.CTkFrame):
 
     def _open_import(self) -> None:
         self.app.show_screen("import")
+
+    def _open_settings(self) -> None:
+        self.app.show_screen("settings")
 
     def _render(self) -> None:
         for card in self._cards:

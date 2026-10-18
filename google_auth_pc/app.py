@@ -4,8 +4,10 @@ from google_auth_pc import theme
 from google_auth_pc.config import Config
 from google_auth_pc.storage import AccountStore
 from google_auth_pc.ui.import_screen import ImportScreen
+from google_auth_pc.ui.intro_screen import IntroScreen
 from google_auth_pc.ui.lock_screen import LockScreen
 from google_auth_pc.ui.main_screen import MainScreen
+from google_auth_pc.ui.settings_screen import SettingsScreen
 
 
 class App(ctk.CTk):
@@ -24,6 +26,10 @@ class App(ctk.CTk):
         self._screens["main"] = self._main_screen
         self._import_screen = ImportScreen(self, self)
         self._screens["import"] = self._import_screen
+        self._settings_screen = SettingsScreen(self, self)
+        self._screens["settings"] = self._settings_screen
+        self._intro_screen = IntroScreen(self, self, on_done=self._finish_intro)
+        self._screens["intro"] = self._intro_screen
         self.show_screen("lock")
 
     @property
@@ -40,8 +46,16 @@ class App(ctk.CTk):
         self.show_main()
 
     def show_main(self) -> None:
+        if not self.app_config.get("first_run_done"):
+            self.show_screen("intro")
+            return
         self._main_screen.reload()
         self.show_screen("main")
+
+    def _finish_intro(self) -> None:
+        self.app_config.set("first_run_done", True)
+        self.app_config.save()
+        self.show_main()
 
     def show_screen(self, name: str) -> None:
         if name == "lock":
@@ -51,6 +65,8 @@ class App(ctk.CTk):
         screen = self._screens.get(name)
         if screen is None:
             return
+        if name == "settings":
+            self._settings_screen.refresh()
         for other in self._screens.values():
             if other is not screen:
                 other.pack_forget()
