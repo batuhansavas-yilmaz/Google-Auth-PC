@@ -4,6 +4,7 @@ from google_auth_pc import theme
 from google_auth_pc.config import Config
 from google_auth_pc.storage import AccountStore
 from google_auth_pc.ui.lock_screen import LockScreen
+from google_auth_pc.ui.main_screen import MainScreen
 
 
 class App(ctk.CTk):
@@ -18,6 +19,8 @@ class App(ctk.CTk):
         self.geometry("400x820")
         self._lock_screen = LockScreen(self, self)
         self._screens["lock"] = self._lock_screen
+        self._main_screen = MainScreen(self, self)
+        self._screens["main"] = self._main_screen
         self.show_screen("lock")
 
     @property
@@ -31,13 +34,12 @@ class App(ctk.CTk):
 
     def unlock_session(self) -> None:
         self._locked = False
-        if "main" in self._screens:
-            self.show_screen("main")
-        else:
-            for screen in self._screens.values():
-                screen.pack_forget()
+        self._main_screen.reload()
+        self.show_screen("main")
 
     def show_screen(self, name: str) -> None:
+        if name == "lock":
+            self._locked = True
         if self._locked and name != "lock":
             return
         screen = self._screens.get(name)
