@@ -1,4 +1,5 @@
 .superpowers/
+docs/superpowers/
 .venv/
 venv/
 __pycache__/
@@ -6,5 +7,4 @@ __pycache__/
 *.pyo
 build/
 dist/
-*.spec
 .pytest_cache/
