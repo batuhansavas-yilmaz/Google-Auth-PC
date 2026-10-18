@@ -18,3 +18,7 @@ def test_data_dir_uses_appdata(tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     d = paths.data_dir()
     assert d.name == "GoogleAuthPC" and d.exists()
+
+def test_accounts_file_is_enc(tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    assert paths.accounts_file().name == "accounts.enc"

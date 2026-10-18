@@ -9,7 +9,7 @@ def data_dir() -> Path:
 
 
 def accounts_file() -> Path:
-    return data_dir() / "accounts.json"
+    return data_dir() / "accounts.enc"
 
 
 def config_file() -> Path:
