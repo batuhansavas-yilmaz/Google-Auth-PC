@@ -107,25 +107,21 @@ class LockScreen(ctk.CTkFrame):
 
     def _show_start(self) -> None:
         self._clear_access()
-        hello_available = hello.hello_biometrics_available()
-        pin_set = pin.is_pin_set(self.app.app_config)
+        self._hello_button = ctk.CTkButton(
+            self._access,
+            text="Windows ile doğrula",
+            command=self._start_hello,
+            width=210,
+            height=40,
+            corner_radius=8,
+            fg_color=_PRIMARY_FG,
+            hover_color=_PRIMARY_HOVER,
+            text_color="#ffffff",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        )
+        self._hello_button.pack()
 
-        if hello_available:
-            self._hello_button = ctk.CTkButton(
-                self._access,
-                text="Windows ile doğrula",
-                command=self._start_hello,
-                width=210,
-                height=40,
-                corner_radius=8,
-                fg_color=_PRIMARY_FG,
-                hover_color=_PRIMARY_HOVER,
-                text_color="#ffffff",
-                font=ctk.CTkFont(size=13, weight="bold"),
-            )
-            self._hello_button.pack()
-
-        if pin_set:
+        if pin.is_pin_set(self.app.app_config):
             ctk.CTkButton(
                 self._access,
                 text="PIN kullan",
@@ -136,10 +132,7 @@ class LockScreen(ctk.CTkFrame):
                 font=ctk.CTkFont(size=12, underline=True),
                 width=100,
                 height=24,
-            ).pack(pady=(10 if hello_available else 0, 0))
-
-        if not hello_available and not pin_set:
-            self._show_new_pin()
+            ).pack(pady=(10, 0))
 
     def _start_hello(self) -> None:
         self._set_status("")

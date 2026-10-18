@@ -4,9 +4,12 @@ from ctypes import wintypes
 from enum import Enum
 
 try:
-    import winsdk.windows.security.credentials.ui as _winsdk
+    import winrt.windows.security.credentials.ui as _winsdk
 except ImportError:
-    _winsdk = None
+    try:
+        import winsdk.windows.security.credentials.ui as _winsdk
+    except ImportError:
+        _winsdk = None
 
 
 class VerifyResult(Enum):

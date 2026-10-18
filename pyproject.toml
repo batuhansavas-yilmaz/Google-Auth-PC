@@ -9,6 +9,8 @@ dependencies = [
   "pystray>=0.19",
   "Pillow>=10",
   "opencv-python>=4.8",
+  "winrt-runtime>=3.2.1",
+  "winrt-Windows.Security.Credentials.UI>=3.2.1",
 ]
 
 [project.optional-dependencies]
