@@ -1,0 +1,21 @@
+[project]
+name = "google-auth-pc"
+version = "0.1.0"
+description = "Windows icin cevrimdisi TOTP kod ureticisi (Google Authenticator aktarimli)"
+requires-python = ">=3.12"
+dependencies = [
+  "customtkinter>=5.2",
+  "pyotp>=2.9",
+  "pystray>=0.19",
+  "Pillow>=10",
+  "opencv-python>=4.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "segno>=1.6", "pyinstaller>=6"]
+
+[project.scripts]
+google-auth-pc = "google_auth_pc.__main__:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
