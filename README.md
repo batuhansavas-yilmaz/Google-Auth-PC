@@ -14,6 +14,14 @@ Telefonun elinde olmadığında PC'den 6 haneli doğrulama kodlarını görürs�
 - Uygulama kilitlidir; Windows Hello (parmak izi, yüz veya hesap parolası) ile açılır. İstersen yedek olarak 6 haneli bir PIN de belirleyebilirsin.
 - Pencereyi kapatan **X** uygulamayı kapatmaz, tepsiye küçültür.
 - Tepsi menüsü: **Aç**, **Kilitle**, **Ayarlar**, **Çıkış**.
+- Pencere boyutu sabittir (yeniden boyutlandırılamaz).
+
+## Kullanım
+
+- Hesap satırına **tek tıkla**: güncel kod panoya kopyalanır.
+- **Sağ tık → Düzenle / Sil**: hesabı düzenle veya sil. Silme onay istemez; 5 saniye içinde **Geri al** ile geri getirebilirsin.
+- Hesaplar Google Authenticator gibi listelenir; e-posta/adlar kısaltılmadan tam görünür.
+- **Ayarlar → Yazı boyutu**: A− / A+ ile küçült/büyüt (kalıcıdır).
 
 ## Telefondan aktarma (4 adım)
 
