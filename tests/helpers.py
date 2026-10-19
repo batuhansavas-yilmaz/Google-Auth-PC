@@ -35,7 +35,9 @@ def field(tag: int, wire: int, payload) -> bytes:
     raise ValueError(f"Desteklenmeyen wire tipi: {wire}")
 
 
-def build_migration_payload(entries) -> bytes:
+def build_migration_payload(
+    entries, batch_size=None, batch_index=None, batch_id=None
+) -> bytes:
     payload = b""
     for entry in entries:
         entry_bytes = b""
@@ -49,9 +51,23 @@ def build_migration_payload(entries) -> bytes:
             if key in entry:
                 entry_bytes += field(tag, 0, entry[key])
         payload += field(1, 2, entry_bytes)
+    if batch_size is not None:
+        payload += field(3, 0, batch_size)
+    if batch_index is not None:
+        payload += field(4, 0, batch_index)
+    if batch_id is not None:
+        payload += field(5, 0, batch_id)
     return payload
 
 
-def build_migration_uri(entries) -> str:
-    encoded = base64.b64encode(build_migration_payload(entries)).decode("ascii")
+def build_migration_uri(
+    entries, batch_size=None, batch_index=None, batch_id=None
+) -> str:
+    payload = build_migration_payload(
+        entries,
+        batch_size=batch_size,
+        batch_index=batch_index,
+        batch_id=batch_id,
+    )
+    encoded = base64.b64encode(payload).decode("ascii")
     return "otpauth-migration://offline?data=" + urllib.parse.quote(encoded)

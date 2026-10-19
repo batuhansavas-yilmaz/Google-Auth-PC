@@ -16,6 +16,19 @@ class MergeResult:
     skipped: list[Account]
 
 
+@dataclass
+class BatchInfo:
+    size: int
+    index: int
+    batch_id: int
+
+
+@dataclass
+class MigrationPayload:
+    accounts: list[Account]
+    batch: BatchInfo | None
+
+
 _ALGORITHMS = {0: "SHA1", 1: "SHA1", 2: "SHA256", 3: "SHA512"}
 _DIGITS = {0: 6, 1: 6, 2: 8}
 _TYPES = {0: "totp", 1: "hotp", 2: "totp"}
@@ -119,17 +132,37 @@ def _parse_entry(data: bytes) -> Account:
     )
 
 
-def parse_migration_payload(data: bytes) -> list[Account]:
+def _parse_payload(data: bytes) -> MigrationPayload:
     accounts: list[Account] = []
+    batch_size = 0
+    batch_index = 0
+    batch_id = 0
     for tag, wire, value in _read_fields(data):
         if tag == 1:
             if wire != 2:
                 raise MigrationParseError("OtpParameters alani beklenen formatta degil")
             accounts.append(_parse_entry(value))
-    return accounts
+        elif wire == 0 and tag == 3:
+            batch_size = value
+        elif wire == 0 and tag == 4:
+            batch_index = value
+        elif wire == 0 and tag == 5:
+            batch_id = value
+    batch = None
+    if batch_size > 1:
+        batch = BatchInfo(size=batch_size, index=batch_index, batch_id=batch_id)
+    return MigrationPayload(accounts=accounts, batch=batch)
 
 
-def parse_migration_uri(uri: str) -> list[Account]:
+def parse_migration_payload(data: bytes) -> list[Account]:
+    return _parse_payload(data).accounts
+
+
+def parse_migration_payload_with_batch(data: bytes) -> MigrationPayload:
+    return _parse_payload(data)
+
+
+def _decode_uri(uri: str) -> bytes:
     parsed = urllib.parse.urlparse(uri)
     if parsed.scheme != "otpauth-migration":
         raise MigrationParseError(f"Gecersiz migration adresi: {uri!r}")
@@ -139,10 +172,17 @@ def parse_migration_uri(uri: str) -> list[Account]:
     data_param = data_param.replace(" ", "+")
     data_param += "=" * (-len(data_param) % 4)
     try:
-        raw = base64.b64decode(data_param, validate=True)
+        return base64.b64decode(data_param, validate=True)
     except ValueError as exc:
         raise MigrationParseError(f"Gecersiz base64 veri: {exc}") from exc
-    return parse_migration_payload(raw)
+
+
+def parse_migration_uri(uri: str) -> list[Account]:
+    return _parse_payload(_decode_uri(uri)).accounts
+
+
+def parse_migration_uri_with_batch(uri: str) -> MigrationPayload:
+    return _parse_payload(_decode_uri(uri))
 
 
 def merge_accounts(existing: list[Account], incoming: list[Account]) -> MergeResult:

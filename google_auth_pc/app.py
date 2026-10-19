@@ -42,6 +42,7 @@ class App(ctk.CTk):
         self._screens["settings"] = self._settings_screen
         self._intro_screen = IntroScreen(self, self, on_done=self._finish_intro)
         self._screens["intro"] = self._intro_screen
+        self.bind("<Map>", self._on_window_mapped, add="+")
         self.show_screen("lock")
         self._tray = tray.start_tray(
             on_open=lambda: self._post_ui(self.show_window),
@@ -116,6 +117,11 @@ class App(ctk.CTk):
         self._save_geometry()
         self._stop_tray()
         self.destroy()
+
+    def _on_window_mapped(self, event) -> None:
+        if event.widget is not self:
+            return
+        self.lock()
 
     def _restore_window(self) -> None:
         self.deiconify()

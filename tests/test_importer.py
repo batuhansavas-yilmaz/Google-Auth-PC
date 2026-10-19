@@ -130,6 +130,58 @@ def test_dense_migration_qr_with_many_accounts_decodes(tmp_path):
     assert result.skipped_payloads == 0
 
 
+def test_incomplete_batch_is_reported(tmp_path):
+    path = save_qr(
+        tmp_path / "ilk-ekran.png",
+        build_migration_uri(
+            [entry(SECRET_A, "alice@example.com", "Example")],
+            batch_size=2,
+            batch_index=0,
+            batch_id=9,
+        ),
+    )
+    result = importer.extract_migration_accounts([path])
+    assert result.accounts == [acc(SECRET_A, "alice@example.com", "Example")]
+    assert result.incomplete_batches == [(9, 1, 2)]
+
+
+def test_complete_batch_is_not_reported(tmp_path):
+    first = save_qr(
+        tmp_path / "ilk-ekran.png",
+        build_migration_uri(
+            [entry(SECRET_A, "alice@example.com", "Example")],
+            batch_size=2,
+            batch_index=0,
+            batch_id=9,
+        ),
+    )
+    second = save_qr(
+        tmp_path / "ikinci-ekran.png",
+        build_migration_uri(
+            [entry(SECRET_B, "bob@example.com", "Work")],
+            batch_size=2,
+            batch_index=1,
+            batch_id=9,
+        ),
+    )
+    result = importer.extract_migration_accounts([first, second])
+    assert result.incomplete_batches == []
+
+
+def test_single_screen_batch_is_not_reported(tmp_path):
+    path = save_qr(
+        tmp_path / "tek-ekran.png",
+        build_migration_uri(
+            [entry(SECRET_A, "alice@example.com", "Example")],
+            batch_size=1,
+            batch_index=0,
+            batch_id=9,
+        ),
+    )
+    result = importer.extract_migration_accounts([path])
+    assert result.incomplete_batches == []
+
+
 def test_importing_importer_does_not_load_zxingcpp():
     probe = (
         "import sys; import google_auth_pc.importer; "

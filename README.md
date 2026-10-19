@@ -20,7 +20,7 @@ Telefonun elinde olmadığında PC'den 6 haneli doğrulama kodlarını görürs�
 1. Google Authenticator'ı aç.
 2. **Ayarlar → Hesapları aktar → Dışa aktar**'ı seç, hesapları işaretle.
 3. Çıkan her QR ekranının görüntüsünü al (hesap çoksa birkaç QR olur).
-4. Görüntüleri PC'ye at ve uygulamada **+ Ekle → Görselleri seç** ile ekle (sürükleyip bırakabilirsin de).
+4. Görüntüleri PC'ye at ve uygulamada **+ Ekle → Görselleri seç…** ile ekle.
 
 Aynı görselleri tekrar eklersen mevcut hesaplar çoğaltılmaz.
 

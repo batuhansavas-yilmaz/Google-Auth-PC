@@ -37,9 +37,11 @@ class LockScreen(ctk.CTkFrame):
         self._hello_button: ctk.CTkButton | None = None
         self._access: ctk.CTkFrame | None = None
         self._status: ctk.CTkLabel | None = None
+        self._epoch = 0
         self._build()
 
     def refresh(self) -> None:
+        self._epoch += 1
         for child in self.winfo_children():
             child.destroy()
         self._pin_pad = None
@@ -139,19 +141,24 @@ class LockScreen(ctk.CTkFrame):
         if self._hello_button is not None:
             self._hello_button.configure(state="disabled")
         hwnd = self.winfo_toplevel().winfo_id()
-        threading.Thread(target=self._run_hello_verify, args=(hwnd,), daemon=True).start()
+        epoch = self._epoch
+        threading.Thread(
+            target=self._run_hello_verify, args=(hwnd, epoch), daemon=True
+        ).start()
 
-    def _run_hello_verify(self, hwnd: int) -> None:
+    def _run_hello_verify(self, hwnd: int, epoch: int) -> None:
         try:
             result = hello.verify_identity(hwnd)
         except Exception:
             result = VerifyResult.UNAVAILABLE
         try:
-            self.after(0, lambda: self._on_hello_result(result))
+            self.after(0, lambda: self._on_hello_result(result, epoch))
         except (tkinter.TclError, RuntimeError):
             pass
 
-    def _on_hello_result(self, result: VerifyResult) -> None:
+    def _on_hello_result(self, result: VerifyResult, epoch: int) -> None:
+        if epoch != self._epoch:
+            return
         if self._hello_button is not None and self._hello_button.winfo_exists():
             self._hello_button.configure(state="normal")
         if result == VerifyResult.OK:

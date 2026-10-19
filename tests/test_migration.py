@@ -117,6 +117,29 @@ def test_wrong_scheme_raises():
         migration.parse_migration_uri("otpauth://totp/x?secret=" + SECRET_A)
 
 
+def test_batch_metadata_is_exposed():
+    payload = build_migration_payload(
+        [entry(SECRET_A, "alice@example.com", "Example")],
+        batch_size=2,
+        batch_index=0,
+        batch_id=7,
+    )
+    parsed = migration.parse_migration_payload_with_batch(payload)
+    assert parsed.accounts == [
+        Account(secret=SECRET_A, name="alice@example.com", issuer="Example")
+    ]
+    assert parsed.batch == migration.BatchInfo(size=2, index=0, batch_id=7)
+
+
+def test_single_or_missing_batch_is_ignored():
+    for batch in ({}, {"batch_size": 1, "batch_index": 0, "batch_id": 7}):
+        payload = build_migration_payload(
+            [entry(SECRET_A, "alice@example.com", "Example")], **batch
+        )
+        parsed = migration.parse_migration_payload_with_batch(payload)
+        assert parsed.batch is None
+
+
 def test_merge_skips_existing_and_keeps_user_edit():
     existing = [acc(SECRET_A, name="edited", issuer="Edited")]
     incoming = [

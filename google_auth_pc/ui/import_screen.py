@@ -35,6 +35,10 @@ _DROP_HINT = ".png / .jpg — birden fazla seçebilirsin"
 _PICK_TEXT = "Görselleri seç…"
 _PICK_TITLE = "QR görsellerini seç"
 _FOUND_TEMPLATE = "{found} hesap bulundu — {added} eklendi, {skipped} zaten ekliydi."
+_INCOMPLETE_TEMPLATE = (
+    "Dikkat: Telefondaki tüm QR ekranlarını seçmemiş olabilirsin ({found}/{total}). "
+    "Kalan ekranların görüntülerini de ekle."
+)
 _FAILED_PREFIX = "Okunamayan görseller: "
 _NO_QR_TEXT = "QR kod bulunamadı. Görsellerin ekran görüntüsü olduğundan emin ol."
 _DIALOG_TITLE = "Aktarım sonucu"
@@ -289,6 +293,10 @@ class ImportScreen(ctk.CTkFrame):
         summary = _FOUND_TEMPLATE.format(
             found=len(result.accounts), added=added, skipped=skipped
         )
+        if result.incomplete_batches:
+            found = sum(item[1] for item in result.incomplete_batches)
+            total = sum(item[2] for item in result.incomplete_batches)
+            summary += "\n" + _INCOMPLETE_TEMPLATE.format(found=found, total=total)
         if result.failed_files:
             names = ", ".join(path.name for path in result.failed_files)
             summary += f"\n{_FAILED_PREFIX}{names}"

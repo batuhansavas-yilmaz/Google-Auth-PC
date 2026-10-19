@@ -167,3 +167,7 @@ def hello_biometrics_available() -> bool:
         return availability == _winsdk.UserConsentVerifierAvailability.AVAILABLE
     except Exception:
         return False
+
+
+def credui_available() -> bool:
+    return _credui is not None

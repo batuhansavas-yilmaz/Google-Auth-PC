@@ -27,10 +27,19 @@ _SECURITY_HELLO_TEXT = (
     "korunur. İstersen yedek olarak 6 haneli bir PIN de belirle — Windows "
     "doğrulaması çalışmazsa bu PIN ile girersin."
 )
+_SECURITY_PASSWORD_TEXT = (
+    "Kodların Windows hesap parolasıyla korunur. İstersen yedek olarak 6 haneli "
+    "bir PIN de belirle — Windows doğrulaması çalışmazsa bu PIN ile girersin."
+)
 _SECURITY_NO_HELLO_TEXT = (
     "Bu bilgisayarda Windows doğrulaması kullanılamıyor. Kodlarını korumak "
     "için 6 haneli bir PIN belirlemen gerekiyor."
 )
+_SECURITY_TEXTS = {
+    "hello": _SECURITY_HELLO_TEXT,
+    "password": _SECURITY_PASSWORD_TEXT,
+    "forced": _SECURITY_NO_HELLO_TEXT,
+}
 _BACKUP_PIN_TEXT = "Yedek PIN belirle (önerilir)"
 _SKIP_PIN_TEXT = "Atla"
 _FINISH_TEXT = "Bitir"
@@ -53,6 +62,12 @@ _ERROR_TEXT = ("#b3261e", "#f2b8b5")
 _SECONDARY_FG = ("#e8eaee", "#22252b")
 _SECONDARY_HOVER = ("#d9dde3", "#2b2f36")
 _SECONDARY_TEXT = ("#3a3f46", "#c7cad1")
+
+
+def _security_mode(hello_available: bool, lock_available: bool) -> str:
+    if not lock_available:
+        return "forced"
+    return "hello" if hello_available else "password"
 
 
 class IntroScreen(ctk.CTkFrame):
@@ -154,6 +169,8 @@ class IntroScreen(ctk.CTkFrame):
     def _show_security_page(self) -> None:
         self._clear()
         hello_available = hello.hello_biometrics_available()
+        lock_available = hello_available or hello.credui_available()
+        mode = _security_mode(hello_available, lock_available)
         content = ctk.CTkFrame(self, fg_color="transparent")
         content.pack(fill="both", expand=True, padx=24, pady=24)
         ctk.CTkLabel(
@@ -164,7 +181,7 @@ class IntroScreen(ctk.CTkFrame):
         ).pack(pady=(12, 8))
         ctk.CTkLabel(
             content,
-            text=_SECURITY_HELLO_TEXT if hello_available else _SECURITY_NO_HELLO_TEXT,
+            text=_SECURITY_TEXTS[mode],
             wraplength=320,
             justify="left",
             font=ctk.CTkFont(size=12),
@@ -197,7 +214,7 @@ class IntroScreen(ctk.CTkFrame):
         )
         self._finish_button.pack(fill="x")
 
-        if hello_available:
+        if mode != "forced":
             ctk.CTkButton(
                 self._pin_area,
                 text=_BACKUP_PIN_TEXT,
