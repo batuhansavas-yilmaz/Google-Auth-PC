@@ -1,7 +1,9 @@
+import ctypes
 import re
 import tkinter
 
 import customtkinter as ctk
+from PIL import ImageTk
 
 from google_auth_pc import theme, tray
 from google_auth_pc.config import Config
@@ -20,7 +22,15 @@ _WINDOW_HEIGHT = 820
 
 class App(ctk.CTk):
     def __init__(self, config: Config, store: AccountStore):
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                "GoogleAuthPC.App"
+            )
+        except (AttributeError, OSError):
+            pass
         super().__init__()
+        self._icon_photo = ImageTk.PhotoImage(tray.make_icon_image(64))
+        self.iconphoto(True, self._icon_photo)
         self.app_config = config
         self.store = store
         self._locked = True
