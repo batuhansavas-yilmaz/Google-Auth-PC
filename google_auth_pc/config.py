@@ -11,7 +11,7 @@ DEFAULTS = {
     "geometry": "",
     "first_run_done": False,
     "pin": None,
-    "font_scale": 1.0,
+    "font_scale": 0.9,
 }
 
 
@@ -31,7 +31,7 @@ class Config:
         if isinstance(loaded, dict):
             self._data.update(loaded)
             self._data["font_scale"] = normalize_scale(
-                self._data.get("font_scale", 1.0)
+                self._data.get("font_scale", DEFAULTS["font_scale"])
             )
             return
         backup = self.path.with_name(self.path.name + ".bozuk")

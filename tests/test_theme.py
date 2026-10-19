@@ -71,8 +71,8 @@ def test_set_font_scale_rejects_invalid_value():
     assert theme.font_scale == 1.0
 
 
-def test_config_font_scale_defaults_to_one(tmp_path):
-    assert Config(tmp_path / "config.json").get("font_scale") == 1.0
+def test_config_font_scale_defaults_to_small(tmp_path):
+    assert Config(tmp_path / "config.json").get("font_scale") == 0.9
 
 
 @pytest.mark.parametrize(
