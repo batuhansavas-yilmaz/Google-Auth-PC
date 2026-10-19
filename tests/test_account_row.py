@@ -66,10 +66,16 @@ def test_long_email_is_shown_in_full_and_wraps(root, scale):
     row = _row(root, email, issuer="Example", scale=scale)
 
     text = row._name_label.cget("text")
-    assert text.replace("\u200b", "") == email
-    assert "@\u200b" in text
+    assert text.replace("\n", "") == email
+    assert "@\n" in text
     assert "…" not in text
     assert int(row._name_label.cget("wraplength")) > 0
+
+
+def test_short_email_stays_on_one_line(root):
+    row = _row(root, "ba***r@gmail.com", issuer="")
+
+    assert row._name_label.cget("text") == "ba***r@gmail.com"
 
 
 @pytest.mark.parametrize("scale", [1.0, 1.3])

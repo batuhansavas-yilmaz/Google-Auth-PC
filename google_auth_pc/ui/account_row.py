@@ -21,7 +21,7 @@ _BASE_CODE_WIDTH = 104
 _BASE_WIDE_CODE_WIDTH = 130
 
 
-_ZWSP = "\u200b"
+_BREAK_AFTER = 24
 
 
 def format_code(code: str) -> str:
@@ -32,10 +32,10 @@ def format_code(code: str) -> str:
 
 
 def display_name(name: str) -> str:
-    if "@" not in name:
+    if "@" not in name or len(name) <= _BREAK_AFTER:
         return name
     local, _, domain = name.partition("@")
-    return f"{local}@{_ZWSP}{domain}"
+    return f"{local}@\n{domain}"
 
 
 class AccountRow(ctk.CTkFrame):
