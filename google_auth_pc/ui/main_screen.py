@@ -16,14 +16,18 @@ _SEARCH_PLACEHOLDER = "Hesap ara…"
 _EMPTY_TEXT = "Henüz hesap yok — + Ekle ile başla"
 _TICK_MS = 250
 _UNDO_VISIBLE_MS = 5000
+_BASE_FAB_HEIGHT = 56
+_BASE_MARGIN = 16
+_BASE_SPACER = 96
+_ICON_FONT = "Segoe MDL2 Assets"
+_LOCK_GLYPH = "\uE72E"
+_SETTINGS_GLYPH = "\uE713"
+_SEARCH_GLYPH = "\uE721"
 
 _PRIMARY_FG = theme.PALETTE["accent"]
 _PRIMARY_HOVER = ("#1f5cd6", "#a8c7fa")
 _ON_ACCENT = theme.PALETTE["on_accent"]
 _MUTED_TEXT = theme.PALETTE["muted"]
-_SECONDARY_FG = theme.PALETTE["surface_alt"]
-_SECONDARY_HOVER = theme.PALETTE["row_hover"]
-_SECONDARY_TEXT = theme.PALETTE["text"]
 
 
 def filter_accounts(accounts: list[Account], query: str) -> list[Account]:
@@ -43,9 +47,83 @@ def _fold(text: str) -> str:
     return without_marks.replace("ı", "i").strip()
 
 
+class _Tooltip:
+    def __init__(self, widget, text: str, scale: float):
+        self._widget = widget
+        self._text = text
+        self._scale = scale
+        self._job: str | None = None
+        self._window: tkinter.Toplevel | None = None
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+        widget.bind("<ButtonPress>", self._hide, add="+")
+        widget.bind("<Destroy>", self._on_destroy, add="+")
+
+    def _schedule(self, _event=None) -> None:
+        self._cancel_job()
+        try:
+            self._job = self._widget.after(450, self._show)
+        except tkinter.TclError:
+            self._job = None
+
+    def _cancel_job(self) -> None:
+        job = self._job
+        self._job = None
+        if job is None:
+            return
+        try:
+            self._widget.after_cancel(job)
+        except tkinter.TclError:
+            pass
+
+    def _show(self) -> None:
+        self._job = None
+        if self._window is not None:
+            return
+        try:
+            if not self._widget.winfo_exists():
+                return
+            palette = theme.current()
+            tip = tkinter.Toplevel(self._widget)
+            tip.wm_overrideredirect(True)
+            tkinter.Label(
+                tip,
+                text=self._text,
+                background=palette["surface"],
+                foreground=palette["text"],
+                padx=theme.scaled(8, self._scale),
+                pady=theme.scaled(3, self._scale),
+                font=("Segoe UI", theme.scaled(10, self._scale)),
+            ).pack()
+            tip.update_idletasks()
+            x = (
+                self._widget.winfo_rootx()
+                + self._widget.winfo_width() // 2
+                - tip.winfo_width() // 2
+            )
+            y = self._widget.winfo_rooty() + self._widget.winfo_height() + 4
+            tip.wm_geometry(f"+{x}+{y}")
+            self._window = tip
+        except tkinter.TclError:
+            self._window = None
+
+    def _hide(self, _event=None) -> None:
+        self._cancel_job()
+        window = self._window
+        self._window = None
+        if window is not None:
+            try:
+                window.destroy()
+            except tkinter.TclError:
+                pass
+
+    def _on_destroy(self, _event=None) -> None:
+        self._hide()
+
+
 class MainScreen(ctk.CTkFrame):
     def __init__(self, master, app: "App"):
-        super().__init__(master, fg_color="transparent")
+        super().__init__(master, fg_color=theme.PALETTE["bg"])
         self.app = app
         self._accounts: list[Account] = []
         self._rows: list[AccountRow] = []
@@ -66,85 +144,186 @@ class MainScreen(ctk.CTkFrame):
             row.tick()
 
     def destroy(self) -> None:
-        if self._tick_id is not None:
-            try:
-                self.after_cancel(self._tick_id)
-            except tkinter.TclError:
-                pass
-            self._tick_id = None
+        for job in ("_tick_id", "_undo_job"):
+            self._cancel_job(job)
         self._clear_undo()
         super().destroy()
 
-    def _build(self) -> None:
-        bar = ctk.CTkFrame(self, fg_color="transparent")
-        bar.pack(fill="x", padx=12, pady=(12, 6))
-        self._search = ctk.CTkEntry(
-            bar,
-            placeholder_text=_SEARCH_PLACEHOLDER,
-            height=32,
-        )
-        self._search.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        self._search.bind("<KeyRelease>", self._on_query_change)
-        self._add_button = ctk.CTkButton(
-            bar,
-            text="+ Ekle",
-            command=self._open_import,
-            width=80,
-            height=32,
-            corner_radius=8,
-            fg_color=_PRIMARY_FG,
-            hover_color=_PRIMARY_HOVER,
-            text_color=_ON_ACCENT,
-            font=ctk.CTkFont(size=13, weight="bold"),
-        )
-        self._add_button.pack(side="left")
-        self._settings_button = ctk.CTkButton(
-            bar,
-            text="Ayarlar",
-            command=self._open_settings,
-            width=74,
-            height=32,
-            corner_radius=8,
-            fg_color=_SECONDARY_FG,
-            hover_color=_SECONDARY_HOVER,
-            text_color=_SECONDARY_TEXT,
-            font=ctk.CTkFont(size=12),
-        )
-        self._settings_button.pack(side="left", padx=(8, 0))
+    def _cancel_job(self, attribute: str) -> None:
+        job = getattr(self, attribute, None)
+        if job is None:
+            return
+        setattr(self, attribute, None)
+        try:
+            self.after_cancel(job)
+        except tkinter.TclError:
+            pass
 
-        self._list = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self._list.pack(fill="both", expand=True, padx=6, pady=(0, 6))
+    def _build(self) -> None:
+        palette = theme.PALETTE
+        scale = self.app.font_scale
+
+        top = ctk.CTkFrame(self, fg_color="transparent")
+        top.pack(
+            fill="x",
+            padx=(theme.scaled(20, scale), theme.scaled(12, scale)),
+            pady=(theme.scaled(10, scale), 0),
+        )
+        self._title = ctk.CTkLabel(
+            top,
+            text="Google Auth PC",
+            text_color=palette["text"],
+            font=theme.font(20, scale, weight="bold"),
+            anchor="w",
+        )
+        self._title.pack(side="left")
+
+        actions = ctk.CTkFrame(top, fg_color="transparent")
+        actions.pack(side="right")
+        button_size = theme.scaled(44, scale)
+        icon_font = theme.font(19, scale, family=_ICON_FONT)
+        self._lock_button = ctk.CTkButton(
+            actions,
+            text=_LOCK_GLYPH,
+            command=self.app.lock,
+            width=button_size,
+            height=button_size,
+            corner_radius=button_size // 2,
+            fg_color="transparent",
+            hover_color=palette["row_hover"],
+            text_color=palette["text"],
+            font=icon_font,
+        )
+        self._lock_button.pack(side="left")
+        _Tooltip(self._lock_button, "Kilitle", scale)
+        self._settings_button = ctk.CTkButton(
+            actions,
+            text=_SETTINGS_GLYPH,
+            command=self._open_settings,
+            width=button_size,
+            height=button_size,
+            corner_radius=button_size // 2,
+            fg_color="transparent",
+            hover_color=palette["row_hover"],
+            text_color=palette["text"],
+            font=icon_font,
+        )
+        self._settings_button.pack(side="left")
+        _Tooltip(self._settings_button, "Ayarlar", scale)
+
+        search_height = theme.scaled(46, scale)
+        self._search_shell = ctk.CTkFrame(
+            self,
+            fg_color=palette["search_fill"],
+            corner_radius=search_height // 2,
+            height=search_height,
+        )
+        self._search_shell.pack(
+            fill="x",
+            padx=theme.scaled(16, scale),
+            pady=(theme.scaled(10, scale), theme.scaled(12, scale)),
+        )
+        self._search_shell.pack_propagate(False)
+        self._search_icon = ctk.CTkLabel(
+            self._search_shell,
+            text=_SEARCH_GLYPH,
+            width=theme.scaled(44, scale),
+            text_color=palette["muted"],
+            font=theme.font(18, scale, family=_ICON_FONT),
+            cursor="xterm",
+        )
+        self._search_icon.pack(side="left")
+        self._search_icon.bind(
+            "<Button-1>", lambda _event: self._search.focus_set(), add="+"
+        )
+        self._search = ctk.CTkEntry(
+            self._search_shell,
+            placeholder_text=_SEARCH_PLACEHOLDER,
+            height=theme.scaled(38, scale),
+            corner_radius=0,
+            border_width=0,
+            fg_color="transparent",
+            text_color=palette["text"],
+            placeholder_text_color=palette["muted"],
+            font=theme.font(16, scale),
+        )
+        self._search.pack(
+            side="left",
+            fill="both",
+            expand=True,
+            padx=(0, theme.scaled(18, scale)),
+        )
+        self._search.bind("<KeyRelease>", self._on_query_change)
+
+        self._list = ctk.CTkScrollableFrame(
+            self,
+            fg_color="transparent",
+            corner_radius=0,
+            border_width=0,
+            scrollbar_fg_color=palette["bg"],
+            scrollbar_button_color=palette["surface_alt"],
+            scrollbar_button_hover_color=palette["muted"],
+        )
+        self._list.pack(fill="both", expand=True)
 
         self._empty_label = ctk.CTkLabel(
             self._list,
             text=_EMPTY_TEXT,
             text_color=_MUTED_TEXT,
-            font=theme.font(14, self.app.font_scale),
+            font=theme.font(14, scale),
+        )
+        self._spacer = ctk.CTkFrame(
+            self._list,
+            fg_color="transparent",
+            height=theme.scaled(_BASE_SPACER, scale),
         )
 
         self._undo_bar = ctk.CTkFrame(
             self,
-            fg_color=theme.PALETTE["surface_alt"],
-            corner_radius=0,
+            fg_color=palette["surface_alt"],
+            corner_radius=theme.scaled(12, scale),
         )
         ctk.CTkLabel(
             self._undo_bar,
-            text="Silindi",
-            text_color=theme.PALETTE["text"],
-            font=theme.font(14, self.app.font_scale),
-        ).pack(side="left", padx=(theme.scaled(16, self.app.font_scale), 8))
+            text="Silindi —",
+            text_color=palette["text"],
+            font=theme.font(14, scale),
+        ).pack(side="left", padx=(theme.scaled(16, scale), 8))
         ctk.CTkButton(
             self._undo_bar,
             text="Geri al",
             command=self._undo_delete,
-            width=theme.scaled(76, self.app.font_scale),
-            height=theme.scaled(32, self.app.font_scale),
-            corner_radius=theme.scaled(8, self.app.font_scale),
+            width=theme.scaled(76, scale),
+            height=theme.scaled(32, scale),
+            corner_radius=theme.scaled(8, scale),
             fg_color="transparent",
-            hover_color=theme.PALETTE["row_hover"],
-            text_color=theme.PALETTE["accent"],
-            font=theme.font(14, self.app.font_scale, weight="bold"),
-        ).pack(side="right", padx=(8, theme.scaled(10, self.app.font_scale)))
+            hover_color=palette["row_hover"],
+            text_color=palette["accent"],
+            font=theme.font(14, scale, weight="bold"),
+        ).pack(side="right", padx=(8, theme.scaled(10, scale)))
+
+        self._fab_height = theme.scaled(_BASE_FAB_HEIGHT, scale)
+        self._fab_margin = theme.scaled(_BASE_MARGIN, scale)
+        self._fab = ctk.CTkButton(
+            self,
+            text="+ Ekle",
+            command=self._open_import,
+            width=theme.scaled(120, scale),
+            height=self._fab_height,
+            corner_radius=self._fab_height // 2,
+            fg_color=_PRIMARY_FG,
+            hover_color=_PRIMARY_HOVER,
+            text_color=_ON_ACCENT,
+            font=theme.font(16, scale, weight="bold"),
+        )
+        self._fab.place(
+            relx=1.0,
+            rely=1.0,
+            anchor="se",
+            x=-self._fab_margin,
+            y=-self._fab_margin,
+        )
+        self._fab.lift()
 
         self.tick()
 
@@ -157,15 +336,29 @@ class MainScreen(ctk.CTkFrame):
     def _open_settings(self) -> None:
         self.app.show_screen("settings")
 
+    def _set_empty_state(self, empty: bool) -> None:
+        scale = self.app.font_scale
+        if empty:
+            self._spacer.pack_forget()
+            if not self._empty_label.winfo_manager():
+                self._empty_label.pack(
+                    padx=theme.scaled(24, scale),
+                    pady=theme.scaled(32, scale),
+                )
+            return
+        self._empty_label.pack_forget()
+
     def _render(self) -> None:
+        self._spacer.pack_forget()
         for row in self._rows:
             row.destroy()
         self._rows = []
-        if self._accounts:
-            self._empty_label.pack_forget()
-        else:
-            self._empty_label.pack(pady=32)
-        for account in filter_accounts(self._accounts, self._search.get()):
+        items = filter_accounts(self._accounts, self._search.get())
+        if not items:
+            self._set_empty_state(True)
+            return
+        self._set_empty_state(False)
+        for account in items:
             index = self._index_of(account)
             if index < 0:
                 continue
@@ -176,8 +369,16 @@ class MainScreen(ctk.CTkFrame):
                 on_edit=self._edit_account,
                 on_delete=lambda acc, i=index: self._delete_account(acc, i),
             )
-            row.pack(fill="x")
             self._rows.append(row)
+        self._place_rows()
+
+    def _place_rows(self) -> None:
+        for row in self._rows:
+            row.pack(fill="x")
+        last = len(self._rows) - 1
+        for index, row in enumerate(self._rows):
+            row.set_divider_visible(index != last)
+        self._spacer.pack(fill="x")
 
     def _index_of(self, account: Account) -> int:
         for index, item in enumerate(self._accounts):
@@ -212,8 +413,16 @@ class MainScreen(ctk.CTkFrame):
     def _show_undo(self, account: Account, index: int) -> None:
         self._undo_account = account
         self._undo_index = index
-        self._undo_bar.place(relx=0, rely=1.0, anchor="sw", relwidth=1.0)
+        offset = self._fab_margin + self._fab_height + theme.scaled(8, self.app.font_scale)
+        self._undo_bar.place(
+            relx=0.0,
+            rely=1.0,
+            anchor="sw",
+            relwidth=1.0,
+            y=-offset,
+        )
         self._undo_bar.lift()
+        self._fab.lift()
         if self._undo_job is not None:
             try:
                 self.after_cancel(self._undo_job)
@@ -303,9 +512,9 @@ class _EditDialog(ctk.CTkToplevel):
             width=90,
             height=30,
             corner_radius=8,
-            fg_color=_SECONDARY_FG,
-            hover_color=_SECONDARY_HOVER,
-            text_color=_SECONDARY_TEXT,
+            fg_color=theme.PALETTE["surface_alt"],
+            hover_color=theme.PALETTE["row_hover"],
+            text_color=theme.PALETTE["text"],
             font=theme.font(12, scale),
         ).pack(side="left")
 

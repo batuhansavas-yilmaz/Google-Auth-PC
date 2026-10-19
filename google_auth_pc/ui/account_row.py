@@ -14,12 +14,8 @@ _COPY_FEEDBACK_MS = 1500
 _COPY_FEEDBACK_TEXT = "Kopyalandı"
 _UNSUPPORTED_TEXT = "desteklenmiyor"
 _UNSET = object()
-_ANIMATION_STEPS = 6
-_ANIMATION_INTERVAL_MS = 16
+_HEIGHT_SYNC_MS = 16
 _LEAVE_CHECK_MS = 20
-_GESTURE_SLOP = 12
-_GESTURE_THRESHOLD = 96
-_MAX_SHIFT_BASE = 160
 _BASE_ROW_WIDTH = 400
 _BASE_CODE_WIDTH = 104
 _BASE_WIDE_CODE_WIDTH = 130
@@ -30,16 +26,6 @@ def format_code(code: str) -> str:
         return code
     half = len(code) // 2
     return f"{code[:half]} {code[half:]}"
-
-
-def resolve_gesture(dx: float, dy: float) -> str:
-    horizontal = abs(dx)
-    vertical = abs(dy)
-    if horizontal >= _GESTURE_THRESHOLD and horizontal > vertical:
-        return "delete" if dx < 0 else "edit"
-    if horizontal < _GESTURE_SLOP and vertical < _GESTURE_SLOP:
-        return "copy"
-    return "none"
 
 
 class AccountRow(ctk.CTkFrame):
@@ -65,16 +51,8 @@ class AccountRow(ctk.CTkFrame):
         self._bar_fill: int | None = None
         self._bar_track: int | None = None
 
-        self._press_active = False
-        self._press_x = 0
-        self._press_y = 0
-        self._dragging = False
-        self._grabbed = False
-        self._offset = 0
-
         self._copy_job: str | None = None
         self._leave_job: str | None = None
-        self._anim_job: str | None = None
         self._height_job: str | None = None
 
         self._hover = False
@@ -85,15 +63,16 @@ class AccountRow(ctk.CTkFrame):
             self.scale,
         )
         self._bar_px = int(round(self._code_width * self._get_widget_scaling()))
-        self._max_shift = theme.scaled(_MAX_SHIFT_BASE, self.scale)
         self._wraplength = 0
         self._last_width = -1
+        self._desired_height = 0
+        self._divider_visible = True
 
         self._build()
         self._bind_tree(self)
         self._create_menu()
         tk.Frame.bind(self, "<Configure>", self._on_resize, add="+")
-        self._apply_wraplength(theme.scaled(_BASE_ROW_WIDTH, self.scale))
+        self._apply_wraplength(_BASE_ROW_WIDTH)
         self._schedule_height()
         self.tick()
 
@@ -113,38 +92,10 @@ class AccountRow(ctk.CTkFrame):
 
     def destroy(self) -> None:
         self._cancel_jobs()
-        if self._grabbed:
-            try:
-                self.grab_release()
-            except tk.TclError:
-                pass
-            self._grabbed = False
         super().destroy()
 
     def _build(self) -> None:
         palette = theme.PALETTE
-
-        self._delete_panel = ctk.CTkFrame(
-            self, fg_color=palette["danger"], corner_radius=0
-        )
-        self._delete_panel.place(x=0, y=0, relwidth=1, relheight=1)
-        ctk.CTkLabel(
-            self._delete_panel,
-            text="Sil",
-            text_color=palette["on_accent"],
-            font=theme.font(16, self.scale, weight="bold"),
-        ).pack(side="right", padx=(0, theme.scaled(24, self.scale)), pady=0)
-
-        self._edit_panel = ctk.CTkFrame(
-            self, fg_color=palette["accent"], corner_radius=0
-        )
-        self._edit_panel.place(x=0, y=0, relwidth=1, relheight=1)
-        ctk.CTkLabel(
-            self._edit_panel,
-            text="Düzenle",
-            text_color=palette["on_accent"],
-            font=theme.font(16, self.scale, weight="bold"),
-        ).pack(side="left", padx=(theme.scaled(24, self.scale), 0), pady=0)
 
         self._content = ctk.CTkFrame(
             self, fg_color=palette["bg"], corner_radius=0
@@ -159,7 +110,7 @@ class AccountRow(ctk.CTkFrame):
             column=0,
             sticky="ew",
             padx=(self._pad, self._gap),
-            pady=theme.scaled(7, self.scale),
+            pady=theme.scaled(12, self.scale),
         )
         self._identity.grid_columnconfigure(0, weight=1)
         self._name_label = ctk.CTkLabel(
@@ -206,7 +157,7 @@ class AccountRow(ctk.CTkFrame):
             column=1,
             sticky="e",
             padx=(self._gap, self._pad),
-            pady=theme.scaled(7, self.scale),
+            pady=theme.scaled(12, self.scale),
         )
         code_col.grid_columnconfigure(0, weight=1)
 
@@ -263,21 +214,15 @@ class AccountRow(ctk.CTkFrame):
             self._menu.add_command(label="Sil", command=self._delete)
 
     def _bind_tree(self, widget) -> None:
-        bindings = (
-            ("<ButtonPress-1>", self._on_press),
-            ("<B1-Motion>", self._on_motion),
-            ("<ButtonRelease-1>", self._on_release),
+        for sequence, handler in (
+            ("<ButtonRelease-1>", self._copy),
             ("<Button-3>", self._popup_menu),
             ("<Enter>", self._on_pointer_enter),
             ("<Leave>", self._on_pointer_leave),
-        )
-        for sequence, handler in bindings:
-            widget.bind(sequence, handler, add="+")
-            if isinstance(widget, ctk.CTkFrame):
-                tk.Frame.bind(widget, sequence, handler, add="+")
-        if isinstance(widget, ctk.CTkFrame):
-            for child in widget.winfo_children():
-                self._bind_tree(child)
+        ):
+            tk.Misc.bind(widget, sequence, handler, add="+")
+        for child in widget.winfo_children():
+            self._bind_tree(child)
 
     def _on_resize(self, event) -> None:
         if event.widget is not self:
@@ -296,12 +241,14 @@ class AccountRow(ctk.CTkFrame):
             return
         self._wraplength = wraplength
         self._name_label.configure(wraplength=wraplength)
+        if self._issuer_label is not None:
+            self._issuer_label.configure(wraplength=wraplength)
         self._schedule_height()
 
     def _schedule_height(self) -> None:
         if self._height_job is not None or not self.winfo_exists():
             return
-        self._height_job = self.after(_ANIMATION_INTERVAL_MS, self._sync_height)
+        self._height_job = self.after(_HEIGHT_SYNC_MS, self._sync_height)
 
     def _sync_height(self) -> None:
         self._height_job = None
@@ -310,6 +257,7 @@ class AccountRow(ctk.CTkFrame):
         needed = self._content.winfo_reqheight() / self._get_widget_scaling()
         desired = max(int(round(needed)), theme.scaled(72, self.scale))
         if desired != self._desired_height:
+            self._desired_height = desired
             self.configure(height=desired)
 
     def _update_bar(self, fraction: float) -> None:
@@ -324,101 +272,15 @@ class AccountRow(ctk.CTkFrame):
             self._bar_fill, 0, 0, round(self._bar_px * fraction), 2
         )
 
-    def _on_press(self, event) -> None:
-        self._cancel_animation()
-        self._set_offset(0)
-        self._press_active = True
-        self._dragging = False
-        self._press_x = event.x_root
-        self._press_y = event.y_root
-
-    def _on_motion(self, event) -> None:
-        if not self._press_active:
+    def set_divider_visible(self, visible: bool) -> None:
+        visible = bool(visible)
+        if visible == self._divider_visible:
             return
-        dx = event.x_root - self._press_x
-        dy = event.y_root - self._press_y
-        if not self._dragging:
-            if abs(dx) < _GESTURE_SLOP and abs(dy) < _GESTURE_SLOP:
-                return
-            if abs(dy) > abs(dx):
-                return
-            self._dragging = True
-            self._grab()
-        offset = max(-self._max_shift, min(self._max_shift, dx))
-        self._set_offset(offset)
-
-    def _on_release(self, event) -> None:
-        if not self._press_active:
-            return
-        self._press_active = False
-        self._dragging = False
-        if self._grabbed:
-            try:
-                self.grab_release()
-            except tk.TclError:
-                pass
-            self._grabbed = False
-
-        dx = event.x_root - self._press_x
-        dy = event.y_root - self._press_y
-        gesture = resolve_gesture(dx, dy)
-
-        if gesture == "delete":
-            self._delete()
-            return
-        if gesture == "edit":
-            self._edit()
-            self._spring_back()
-            return
-        if gesture == "copy":
-            self._copy()
-            return
-        self._spring_back()
-
-    def _grab(self) -> None:
-        try:
-            self.grab_set()
-            self._grabbed = True
-        except tk.TclError:
-            self._grabbed = False
-
-    def _set_offset(self, offset: int) -> None:
-        self._offset = int(offset)
-        if self._offset < 0:
-            self._delete_panel.lift()
-        elif self._offset > 0:
-            self._edit_panel.lift()
-        if self._offset != 0:
-            self._content.lift()
-        self._content.place_configure(x=self._offset)
-
-    def _spring_back(self) -> None:
-        self._cancel_animation()
-        start = self._offset
-        if start == 0:
-            return
-
-        def animate(step: int) -> None:
-            self._anim_job = None
-            if not self.winfo_exists():
-                return
-            if step >= _ANIMATION_STEPS:
-                self._set_offset(0)
-                return
-            self._set_offset(int(start * (_ANIMATION_STEPS - step) / _ANIMATION_STEPS))
-            self._anim_job = self.after(
-                _ANIMATION_INTERVAL_MS, lambda: animate(step + 1)
-            )
-
-        self._anim_job = self.after(_ANIMATION_INTERVAL_MS, lambda: animate(1))
-
-    def _cancel_animation(self) -> None:
-        if self._anim_job is not None:
-            try:
-                self.after_cancel(self._anim_job)
-            except tk.TclError:
-                pass
-            self._anim_job = None
+        self._divider_visible = visible
+        if visible:
+            self._divider.grid()
+        else:
+            self._divider.grid_remove()
 
     def _on_pointer_enter(self, _event) -> None:
         if self._leave_job is not None:
@@ -458,7 +320,7 @@ class AccountRow(ctk.CTkFrame):
             fg_color=theme.PALETTE["row_hover"] if hover else theme.PALETTE["bg"]
         )
 
-    def _copy(self) -> None:
+    def _copy(self, _event=None) -> None:
         code = code_at(self.account)
         if code is None:
             return
@@ -508,12 +370,7 @@ class AccountRow(ctk.CTkFrame):
             self._on_delete(self.account)
 
     def _cancel_jobs(self) -> None:
-        for name in (
-            "_copy_job",
-            "_leave_job",
-            "_anim_job",
-            "_height_job",
-        ):
+        for name in ("_copy_job", "_leave_job", "_height_job"):
             job = getattr(self, name)
             if job is not None:
                 try:

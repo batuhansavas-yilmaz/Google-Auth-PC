@@ -14,6 +14,8 @@ from google_auth_pc.ui.settings_screen import SettingsScreen
 
 _GEOMETRY_SAVE_DELAY_MS = 250
 _GEOMETRY_RE = re.compile(r"^(\d+)x(\d+)([+-]\d+)([+-]\d+)$")
+_WINDOW_WIDTH = 400
+_WINDOW_HEIGHT = 820
 
 
 class App(ctk.CTk):
@@ -32,7 +34,7 @@ class App(ctk.CTk):
         theme.apply_theme(config.get("theme_mode", "system"))
         theme.set_font_scale(config.get("font_scale", 1.0))
         self.title("Google Auth PC")
-        self.geometry("400x820")
+        self._apply_fixed_size()
         self._apply_saved_geometry()
         self.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
         self._build_screens()
@@ -210,18 +212,20 @@ class App(ctk.CTk):
         self.app_config.set("geometry", spec)
         self.app_config.save()
 
+    def _apply_fixed_size(self) -> None:
+        self.resizable(False, False)
+        self.geometry(f"{_WINDOW_WIDTH}x{_WINDOW_HEIGHT}")
+
     def _apply_saved_geometry(self) -> None:
         parsed = self._parse_geometry(self.app_config.get("geometry", ""))
         if parsed is None:
             return
-        width, height, x, y = parsed
+        _, _, x, y = parsed
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
-        width = min(width, screen_width)
-        height = min(height, screen_height)
-        x = max(0, min(x, screen_width - width))
-        y = max(0, min(y, screen_height - height))
-        self.geometry(f"{width}x{height}+{x}+{y}")
+        x = max(0, min(x, screen_width - _WINDOW_WIDTH))
+        y = max(0, min(y, screen_height - _WINDOW_HEIGHT))
+        self.geometry(f"{_WINDOW_WIDTH}x{_WINDOW_HEIGHT}+{x}+{y}")
 
     def _parse_geometry(self, spec: str) -> tuple[int, int, int, int] | None:
         match = _GEOMETRY_RE.match(spec.strip()) if spec else None
