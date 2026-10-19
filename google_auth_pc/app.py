@@ -26,6 +26,7 @@ class App(ctk.CTk):
         self._tray = None
         self._geometry_job: str | None = None
         self._closing = False
+        self._relock_on_map = False
         self._screens: dict[str, ctk.CTkFrame] = {}
         theme.apply_theme(config.get("theme_mode", "system"))
         self.title("Google Auth PC")
@@ -43,6 +44,7 @@ class App(ctk.CTk):
         self._intro_screen = IntroScreen(self, self, on_done=self._finish_intro)
         self._screens["intro"] = self._intro_screen
         self.bind("<Map>", self._on_window_mapped, add="+")
+        self.bind("<Unmap>", self._on_window_unmapped, add="+")
         self.show_screen("lock")
         self._tray = tray.start_tray(
             on_open=lambda: self._post_ui(self.show_window),
@@ -97,6 +99,7 @@ class App(ctk.CTk):
         screen.pack(fill="both", expand=True)
 
     def hide_to_tray(self) -> None:
+        self._relock_on_map = True
         self._schedule_geometry_save()
         self.withdraw()
         self.lock()
@@ -121,9 +124,19 @@ class App(ctk.CTk):
     def _on_window_mapped(self, event) -> None:
         if event.widget is not self:
             return
+        if not self._relock_on_map:
+            return
+        self._relock_on_map = False
         self.lock()
 
+    def _on_window_unmapped(self, event) -> None:
+        if event.widget is not self:
+            return
+        if self.state() == "iconic":
+            self._relock_on_map = True
+
     def _restore_window(self) -> None:
+        self._relock_on_map = False
         self.deiconify()
         self.lift()
         self.focus_force()
