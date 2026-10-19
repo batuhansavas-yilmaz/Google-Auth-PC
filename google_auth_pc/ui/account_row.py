@@ -21,11 +21,21 @@ _BASE_CODE_WIDTH = 104
 _BASE_WIDE_CODE_WIDTH = 130
 
 
+_ZWSP = "\u200b"
+
+
 def format_code(code: str) -> str:
     if len(code) < 2:
         return code
     half = len(code) // 2
     return f"{code[:half]} {code[half:]}"
+
+
+def display_name(name: str) -> str:
+    if "@" not in name:
+        return name
+    local, _, domain = name.partition("@")
+    return f"{local}@{_ZWSP}{domain}"
 
 
 class AccountRow(ctk.CTkFrame):
@@ -115,7 +125,7 @@ class AccountRow(ctk.CTkFrame):
         self._identity.grid_columnconfigure(0, weight=1)
         self._name_label = ctk.CTkLabel(
             self._identity,
-            text=self.account.name,
+            text=display_name(self.account.name),
             text_color=palette["text"],
             font=theme.font(18, self.scale, weight="bold"),
             anchor="w",

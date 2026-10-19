@@ -65,8 +65,10 @@ def test_long_email_is_shown_in_full_and_wraps(root, scale):
 
     row = _row(root, email, issuer="Example", scale=scale)
 
-    assert row._name_label.cget("text") == email
-    assert "…" not in row._name_label.cget("text")
+    text = row._name_label.cget("text")
+    assert text.replace("\u200b", "") == email
+    assert "@\u200b" in text
+    assert "…" not in text
     assert int(row._name_label.cget("wraplength")) > 0
 
 
