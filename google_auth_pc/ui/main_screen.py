@@ -1,28 +1,29 @@
 import tkinter
 import unicodedata
 from collections.abc import Callable
-from tkinter import messagebox
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
+from google_auth_pc import theme
 from google_auth_pc.models import Account
-from google_auth_pc.ui.widgets import AccountCard
+from google_auth_pc.ui.account_row import AccountRow
 
 if TYPE_CHECKING:
     from google_auth_pc.app import App
 
 _SEARCH_PLACEHOLDER = "Hesap ara…"
 _EMPTY_TEXT = "Henüz hesap yok — + Ekle ile başla"
-_DELETE_QUESTION = "Hesap silinsin mi? Bu işlem geri alınamaz."
 _TICK_MS = 250
+_UNDO_VISIBLE_MS = 5000
 
-_PRIMARY_FG = ("#2b6df5", "#2b6df5")
-_PRIMARY_HOVER = ("#1f5cd6", "#1f5cd6")
-_MUTED_TEXT = ("#6a7078", "#8b8f98")
-_SECONDARY_FG = ("#e8eaee", "#22252b")
-_SECONDARY_HOVER = ("#d9dde3", "#2b2f36")
-_SECONDARY_TEXT = ("#3a3f46", "#c7cad1")
+_PRIMARY_FG = theme.PALETTE["accent"]
+_PRIMARY_HOVER = ("#1f5cd6", "#a8c7fa")
+_ON_ACCENT = theme.PALETTE["on_accent"]
+_MUTED_TEXT = theme.PALETTE["muted"]
+_SECONDARY_FG = theme.PALETTE["surface_alt"]
+_SECONDARY_HOVER = theme.PALETTE["row_hover"]
+_SECONDARY_TEXT = theme.PALETTE["text"]
 
 
 def filter_accounts(accounts: list[Account], query: str) -> list[Account]:
@@ -47,8 +48,11 @@ class MainScreen(ctk.CTkFrame):
         super().__init__(master, fg_color="transparent")
         self.app = app
         self._accounts: list[Account] = []
-        self._cards: list[AccountCard] = []
+        self._rows: list[AccountRow] = []
         self._tick_id: str | None = None
+        self._undo_job: str | None = None
+        self._undo_account: Account | None = None
+        self._undo_index: int | None = None
         self._build()
         self.reload()
 
@@ -58,8 +62,8 @@ class MainScreen(ctk.CTkFrame):
 
     def tick(self) -> None:
         self._tick_id = self.after(_TICK_MS, self.tick)
-        for card in self._cards:
-            card.tick()
+        for row in self._rows:
+            row.tick()
 
     def destroy(self) -> None:
         if self._tick_id is not None:
@@ -68,6 +72,7 @@ class MainScreen(ctk.CTkFrame):
             except tkinter.TclError:
                 pass
             self._tick_id = None
+        self._clear_undo()
         super().destroy()
 
     def _build(self) -> None:
@@ -89,7 +94,7 @@ class MainScreen(ctk.CTkFrame):
             corner_radius=8,
             fg_color=_PRIMARY_FG,
             hover_color=_PRIMARY_HOVER,
-            text_color="#ffffff",
+            text_color=_ON_ACCENT,
             font=ctk.CTkFont(size=13, weight="bold"),
         )
         self._add_button.pack(side="left")
@@ -114,8 +119,32 @@ class MainScreen(ctk.CTkFrame):
             self._list,
             text=_EMPTY_TEXT,
             text_color=_MUTED_TEXT,
-            font=ctk.CTkFont(size=12),
+            font=theme.font(14, self.app.font_scale),
         )
+
+        self._undo_bar = ctk.CTkFrame(
+            self,
+            fg_color=theme.PALETTE["surface_alt"],
+            corner_radius=0,
+        )
+        ctk.CTkLabel(
+            self._undo_bar,
+            text="Silindi",
+            text_color=theme.PALETTE["text"],
+            font=theme.font(14, self.app.font_scale),
+        ).pack(side="left", padx=(theme.scaled(16, self.app.font_scale), 8))
+        ctk.CTkButton(
+            self._undo_bar,
+            text="Geri al",
+            command=self._undo_delete,
+            width=theme.scaled(76, self.app.font_scale),
+            height=theme.scaled(32, self.app.font_scale),
+            corner_radius=theme.scaled(8, self.app.font_scale),
+            fg_color="transparent",
+            hover_color=theme.PALETTE["row_hover"],
+            text_color=theme.PALETTE["accent"],
+            font=theme.font(14, self.app.font_scale, weight="bold"),
+        ).pack(side="right", padx=(8, theme.scaled(10, self.app.font_scale)))
 
         self.tick()
 
@@ -129,28 +158,39 @@ class MainScreen(ctk.CTkFrame):
         self.app.show_screen("settings")
 
     def _render(self) -> None:
-        for card in self._cards:
-            card.destroy()
-        self._cards = []
+        for row in self._rows:
+            row.destroy()
+        self._rows = []
         if self._accounts:
             self._empty_label.pack_forget()
         else:
             self._empty_label.pack(pady=32)
         for account in filter_accounts(self._accounts, self._search.get()):
-            card = AccountCard(
+            index = self._index_of(account)
+            if index < 0:
+                continue
+            row = AccountRow(
                 self._list,
                 account,
+                scale=self.app.font_scale,
                 on_edit=self._edit_account,
-                on_delete=self._delete_account,
+                on_delete=lambda acc, i=index: self._delete_account(acc, i),
             )
-            card.pack(fill="x", padx=4, pady=4)
-            self._cards.append(card)
+            row.pack(fill="x")
+            self._rows.append(row)
+
+    def _index_of(self, account: Account) -> int:
+        for index, item in enumerate(self._accounts):
+            if item is account:
+                return index
+        return -1
 
     def _edit_account(self, account: Account) -> None:
         _EditDialog(
             self,
             account,
             on_save=lambda name, issuer: self._apply_edit(account, name, issuer),
+            scale=self.app.font_scale,
         )
 
     def _apply_edit(self, account: Account, name: str, issuer: str) -> None:
@@ -159,10 +199,49 @@ class MainScreen(ctk.CTkFrame):
         self.app.store.save(self._accounts)
         self.reload()
 
-    def _delete_account(self, account: Account) -> None:
-        if not messagebox.askyesno("Hesabı sil", _DELETE_QUESTION, parent=self):
+    def _delete_account(self, account: Account, index: int) -> None:
+        current = self._index_of(account)
+        if current < 0:
             return
-        self._accounts = [item for item in self._accounts if item is not account]
+        self._clear_undo()
+        self._accounts.pop(current)
+        self.app.store.save(self._accounts)
+        self._render()
+        self._show_undo(account, current)
+
+    def _show_undo(self, account: Account, index: int) -> None:
+        self._undo_account = account
+        self._undo_index = index
+        self._undo_bar.place(relx=0, rely=1.0, anchor="sw", relwidth=1.0)
+        self._undo_bar.lift()
+        if self._undo_job is not None:
+            try:
+                self.after_cancel(self._undo_job)
+            except tkinter.TclError:
+                pass
+        self._undo_job = self.after(_UNDO_VISIBLE_MS, self._clear_undo)
+
+    def _clear_undo(self) -> None:
+        job = getattr(self, "_undo_job", None)
+        self._undo_job = None
+        if job is not None:
+            try:
+                self.after_cancel(job)
+            except tkinter.TclError:
+                pass
+        self._undo_account = None
+        self._undo_index = None
+        if hasattr(self, "_undo_bar"):
+            self._undo_bar.place_forget()
+
+    def _undo_delete(self) -> None:
+        account = self._undo_account
+        index = self._undo_index
+        self._clear_undo()
+        if account is None or index is None:
+            return
+        index = max(0, min(index, len(self._accounts)))
+        self._accounts.insert(index, account)
         self.app.store.save(self._accounts)
         self.reload()
 
@@ -173,6 +252,7 @@ class _EditDialog(ctk.CTkToplevel):
         master,
         account: Account,
         on_save: Callable[[str, str], None],
+        scale: float = 1.0,
     ):
         super().__init__(master)
         self.title("Hesabı düzenle")
@@ -184,10 +264,10 @@ class _EditDialog(ctk.CTkToplevel):
             self,
             text="Hesap adı",
             anchor="w",
-            font=ctk.CTkFont(size=12),
+            font=theme.font(12, scale),
             text_color=_MUTED_TEXT,
         ).pack(fill="x", padx=16, pady=(16, 2))
-        self._name_entry = ctk.CTkEntry(self, height=30)
+        self._name_entry = ctk.CTkEntry(self, height=30, font=theme.font(13, scale))
         self._name_entry.insert(0, account.name)
         self._name_entry.pack(fill="x", padx=16)
 
@@ -195,10 +275,10 @@ class _EditDialog(ctk.CTkToplevel):
             self,
             text="Servis",
             anchor="w",
-            font=ctk.CTkFont(size=12),
+            font=theme.font(12, scale),
             text_color=_MUTED_TEXT,
         ).pack(fill="x", padx=16, pady=(10, 2))
-        self._issuer_entry = ctk.CTkEntry(self, height=30)
+        self._issuer_entry = ctk.CTkEntry(self, height=30, font=theme.font(13, scale))
         self._issuer_entry.insert(0, account.issuer)
         self._issuer_entry.pack(fill="x", padx=16)
 
@@ -213,8 +293,8 @@ class _EditDialog(ctk.CTkToplevel):
             corner_radius=8,
             fg_color=_PRIMARY_FG,
             hover_color=_PRIMARY_HOVER,
-            text_color="#ffffff",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=_ON_ACCENT,
+            font=theme.font(12, scale, weight="bold"),
         ).pack(side="left", padx=(0, 8))
         ctk.CTkButton(
             buttons,
@@ -226,7 +306,7 @@ class _EditDialog(ctk.CTkToplevel):
             fg_color=_SECONDARY_FG,
             hover_color=_SECONDARY_HOVER,
             text_color=_SECONDARY_TEXT,
-            font=ctk.CTkFont(size=12),
+            font=theme.font(12, scale),
         ).pack(side="left")
 
         self.transient(master.winfo_toplevel())
