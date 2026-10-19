@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 _SEARCH_PLACEHOLDER = "Hesap ara…"
 _EMPTY_TEXT = "Henüz hesap yok — + Ekle ile başla"
+_NO_MATCH_TEXT = "Eşleşen hesap yok"
 _TICK_MS = 250
 _UNDO_VISIBLE_MS = 5000
 _BASE_FAB_HEIGHT = 56
@@ -353,8 +354,12 @@ class MainScreen(ctk.CTkFrame):
         for row in self._rows:
             row.destroy()
         self._rows = []
-        items = filter_accounts(self._accounts, self._search.get())
+        query = self._search.get()
+        items = filter_accounts(self._accounts, query)
         if not items:
+            self._empty_label.configure(
+                text=_NO_MATCH_TEXT if query.strip() else _EMPTY_TEXT
+            )
             self._set_empty_state(True)
             return
         self._set_empty_state(False)

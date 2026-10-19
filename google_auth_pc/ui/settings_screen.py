@@ -59,7 +59,6 @@ class SettingsScreen(ctk.CTkFrame):
         self._pin_area: ctk.CTkFrame | None = None
         self._pin_button: ctk.CTkButton | None = None
         self._autostart_switch: ctk.CTkSwitch | None = None
-        self._theme_segmented: ctk.CTkSegmentedButton | None = None
         self._font_value: ctk.CTkLabel | None = None
         self._font_minus: ctk.CTkButton | None = None
         self._font_plus: ctk.CTkButton | None = None
@@ -73,8 +72,7 @@ class SettingsScreen(ctk.CTkFrame):
             self._autostart_switch.select()
         else:
             self._autostart_switch.deselect()
-        mode = self.app.app_config.get("theme_mode", "system")
-        self._theme_segmented.set(_THEME_MODES_TO_LABELS.get(mode, "Otomatik"))
+        self._sync_theme_buttons()
         self._sync_font_stepper()
         self._set_status("")
 
@@ -110,7 +108,15 @@ class SettingsScreen(ctk.CTkFrame):
             text_color=palette["muted"],
         ).pack(side="bottom", pady=(0, theme.scaled(14, scale)))
 
-        body = ctk.CTkFrame(self, fg_color="transparent")
+        body = ctk.CTkScrollableFrame(
+            self,
+            fg_color="transparent",
+            corner_radius=0,
+            border_width=0,
+            scrollbar_fg_color=palette["bg"],
+            scrollbar_button_color=palette["surface_alt"],
+            scrollbar_button_hover_color=palette["muted"],
+        )
         body.pack(fill="both", expand=True, padx=theme.scaled(16, scale), pady=(4, 8))
 
         self._section(body, _VIEW_LABEL)
@@ -122,19 +128,20 @@ class SettingsScreen(ctk.CTkFrame):
             font=theme.font(16, scale),
             text_color=palette["text"],
         ).pack(fill="x", padx=theme.scaled(16, scale), pady=(theme.scaled(14, scale), 6))
-        self._theme_segmented = ctk.CTkSegmentedButton(
-            view_card,
-            values=list(_THEME_LABELS_TO_MODES),
-            command=self._on_theme_selected,
-            height=theme.scaled(38, scale),
-            corner_radius=theme.scaled(19, scale),
-            font=theme.font(14, scale),
-            selected_color=palette["accent"],
-            selected_hover_color=palette["accent"],
-            unselected_color=palette["surface_alt"],
-            unselected_hover_color=palette["row_hover"],
-        )
-        self._theme_segmented.pack(fill="x", padx=theme.scaled(16, scale))
+        theme_row = ctk.CTkFrame(view_card, fg_color="transparent")
+        theme_row.pack(fill="x", padx=theme.scaled(16, scale))
+        self._theme_buttons: dict[str, ctk.CTkButton] = {}
+        for label in _THEME_LABELS_TO_MODES:
+            button = ctk.CTkButton(
+                theme_row,
+                text=label,
+                command=lambda value=label: self._on_theme_selected(value),
+                height=theme.scaled(38, scale),
+                corner_radius=theme.scaled(19, scale),
+                font=theme.font(14, scale),
+            )
+            button.pack(side="left", fill="x", expand=True, padx=theme.scaled(2, scale))
+            self._theme_buttons[label] = button
         ctk.CTkFrame(
             view_card,
             height=1,
@@ -222,7 +229,6 @@ class SettingsScreen(ctk.CTkFrame):
         )
         self._pin_button.pack(side="right")
         self._pin_area = ctk.CTkFrame(security_card, fg_color="transparent")
-        self._pin_area.pack(fill="x", padx=theme.scaled(16, scale), pady=(0, theme.scaled(10, scale)))
 
         self._status = ctk.CTkLabel(
             body,
@@ -271,6 +277,24 @@ class SettingsScreen(ctk.CTkFrame):
         )
         frame.pack(fill="x", pady=(0, theme.scaled(8, self.app.font_scale)))
         return frame
+
+    def _sync_theme_buttons(self) -> None:
+        palette = theme.PALETTE
+        mode = self.app.app_config.get("theme_mode", "system")
+        active = _THEME_MODES_TO_LABELS.get(mode, "Otomatik")
+        for label, button in self._theme_buttons.items():
+            if label == active:
+                button.configure(
+                    fg_color=palette["accent"],
+                    hover_color=palette["accent"],
+                    text_color=palette["on_accent"],
+                )
+            else:
+                button.configure(
+                    fg_color=palette["surface_alt"],
+                    hover_color=palette["row_hover"],
+                    text_color=palette["text"],
+                )
 
     def _sync_font_stepper(self) -> None:
         scale = self.app.font_scale
@@ -323,6 +347,11 @@ class SettingsScreen(ctk.CTkFrame):
     def _start_pin_flow(self) -> None:
         self._reset_pin_flow()
         self._set_status("")
+        self._pin_area.pack(
+            fill="x",
+            padx=theme.scaled(16, self.app.font_scale),
+            pady=(0, theme.scaled(10, self.app.font_scale)),
+        )
         if pin.is_pin_set(self.app.app_config):
             self._pin_pad = PinPad(self._pin_area, self._on_current_pin, _PIN_CURRENT_TITLE)
         else:
@@ -364,6 +393,7 @@ class SettingsScreen(ctk.CTkFrame):
     def _clear_pin_area(self) -> None:
         for child in self._pin_area.winfo_children():
             child.destroy()
+        self._pin_area.pack_forget()
         self._pin_pad = None
 
     def _reset_pin_flow(self) -> None:

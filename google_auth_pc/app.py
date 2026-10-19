@@ -32,7 +32,7 @@ class App(ctk.CTk):
         self._screens: dict[str, ctk.CTkFrame] = {}
         self._active_screen: str | None = None
         theme.apply_theme(config.get("theme_mode", "system"))
-        theme.set_font_scale(config.get("font_scale", 1.0))
+        theme.set_font_scale(config.get("font_scale", 0.9))
         self.title("Google Auth PC")
         self._apply_fixed_size()
         self._apply_saved_geometry()
