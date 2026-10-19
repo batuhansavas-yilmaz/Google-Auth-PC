@@ -1,6 +1,7 @@
 from datetime import datetime
 from tkinter import messagebox
 
+from google_auth_pc import autostart, singleinstance
 from google_auth_pc.app import App
 from google_auth_pc.config import Config
 from google_auth_pc.storage import AccountStore, StorageCorruptError
@@ -25,7 +26,15 @@ def _prepare_store(store: AccountStore) -> str | None:
 
 
 def main() -> None:
+    if not singleinstance.acquire():
+        singleinstance.focus_existing()
+        return
     config = Config()
+    if config.get("autostart"):
+        try:
+            autostart.enable()
+        except OSError:
+            pass
     store = AccountStore()
     warning = _prepare_store(store)
     app = App(config, store)
