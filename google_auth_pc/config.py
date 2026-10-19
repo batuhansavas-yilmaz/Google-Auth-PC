@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from google_auth_pc import paths
+from google_auth_pc.theme import normalize_scale
 
 DEFAULTS = {
     "theme_mode": "system",
@@ -10,6 +11,7 @@ DEFAULTS = {
     "geometry": "",
     "first_run_done": False,
     "pin": None,
+    "font_scale": 1.0,
 }
 
 
@@ -28,6 +30,9 @@ class Config:
             loaded = None
         if isinstance(loaded, dict):
             self._data.update(loaded)
+            self._data["font_scale"] = normalize_scale(
+                self._data.get("font_scale", 1.0)
+            )
             return
         backup = self.path.with_name(self.path.name + ".bozuk")
         backup.unlink(missing_ok=True)

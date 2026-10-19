@@ -28,21 +28,14 @@ class App(ctk.CTk):
         self._closing = False
         self._relock_on_map = False
         self._screens: dict[str, ctk.CTkFrame] = {}
+        self._active_screen: str | None = None
         theme.apply_theme(config.get("theme_mode", "system"))
+        theme.set_font_scale(config.get("font_scale", 1.0))
         self.title("Google Auth PC")
         self.geometry("400x820")
         self._apply_saved_geometry()
         self.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
-        self._lock_screen = LockScreen(self, self)
-        self._screens["lock"] = self._lock_screen
-        self._main_screen = MainScreen(self, self)
-        self._screens["main"] = self._main_screen
-        self._import_screen = ImportScreen(self, self)
-        self._screens["import"] = self._import_screen
-        self._settings_screen = SettingsScreen(self, self)
-        self._screens["settings"] = self._settings_screen
-        self._intro_screen = IntroScreen(self, self, on_done=self._finish_intro)
-        self._screens["intro"] = self._intro_screen
+        self._build_screens()
         self.bind("<Map>", self._on_window_mapped, add="+")
         self.bind("<Unmap>", self._on_window_unmapped, add="+")
         self.show_screen("lock")
@@ -53,9 +46,46 @@ class App(ctk.CTk):
             on_quit=lambda: self._post_ui(self.quit_app),
         )
 
+    def _build_screens(self) -> None:
+        self._lock_screen = LockScreen(self, self)
+        self._main_screen = MainScreen(self, self)
+        self._import_screen = ImportScreen(self, self)
+        self._settings_screen = SettingsScreen(self, self)
+        self._intro_screen = IntroScreen(self, self, on_done=self._finish_intro)
+        self._screens = {
+            "lock": self._lock_screen,
+            "main": self._main_screen,
+            "import": self._import_screen,
+            "settings": self._settings_screen,
+            "intro": self._intro_screen,
+        }
+
     @property
     def is_locked(self) -> bool:
         return self._locked
+
+    @property
+    def font_scale(self) -> float:
+        return theme.font_scale
+
+    def set_font_scale(self, scale: float) -> None:
+        value = theme.normalize_scale(scale)
+        theme.set_font_scale(value)
+        self.app_config.set("font_scale", value)
+        self.app_config.save()
+        active = self._active_screen
+        locked = self._locked
+        for screen in self._screens.values():
+            screen.destroy()
+        self._screens = {}
+        self._build_screens()
+        self._locked = locked
+        if locked:
+            self.show_screen("lock")
+        elif active is not None:
+            self.show_screen(active)
+        else:
+            self.show_main()
 
     def lock(self) -> None:
         self._locked = True
@@ -97,6 +127,7 @@ class App(ctk.CTk):
             if other is not screen:
                 other.pack_forget()
         screen.pack(fill="both", expand=True)
+        self._active_screen = name
 
     def hide_to_tray(self) -> None:
         self._relock_on_map = True

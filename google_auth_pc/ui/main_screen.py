@@ -1,3 +1,4 @@
+import tkinter
 import unicodedata
 from collections.abc import Callable
 from tkinter import messagebox
@@ -59,6 +60,15 @@ class MainScreen(ctk.CTkFrame):
         self._tick_id = self.after(_TICK_MS, self.tick)
         for card in self._cards:
             card.tick()
+
+    def destroy(self) -> None:
+        if self._tick_id is not None:
+            try:
+                self.after_cancel(self._tick_id)
+            except tkinter.TclError:
+                pass
+            self._tick_id = None
+        super().destroy()
 
     def _build(self) -> None:
         bar = ctk.CTkFrame(self, fg_color="transparent")
