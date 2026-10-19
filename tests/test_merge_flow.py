@@ -50,10 +50,10 @@ def test_apply_import_skips_malformed_secret(tmp_path):
     assert store.load() == [acc(SECRET_NEW)]
 
 
-def test_importing_import_screen_does_not_load_cv2():
+def test_importing_import_screen_does_not_load_zxingcpp():
     probe = (
         "import sys; import google_auth_pc.ui.import_screen; "
-        "assert 'cv2' not in sys.modules"
+        "assert 'zxingcpp' not in sys.modules"
     )
     completed = subprocess.run(
         [sys.executable, "-c", probe], capture_output=True, text=True

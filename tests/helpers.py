@@ -1,6 +1,15 @@
 import base64
 import urllib.parse
 
+from google_auth_pc.totp import normalize_secret
+
+
+def _secret_bytes(secret) -> bytes:
+    if isinstance(secret, bytes):
+        return secret
+    normalized = normalize_secret(secret)
+    return base64.b32decode(normalized + "=" * (-len(normalized) % 8))
+
 
 def varint(value: int) -> bytes:
     if value < 0:
@@ -31,9 +40,7 @@ def build_migration_payload(entries) -> bytes:
     for entry in entries:
         entry_bytes = b""
         if "secret" in entry:
-            secret = entry["secret"]
-            raw = secret if isinstance(secret, bytes) else secret.encode("ascii")
-            entry_bytes += field(1, 2, raw)
+            entry_bytes += field(1, 2, _secret_bytes(entry["secret"]))
         if "name" in entry:
             entry_bytes += field(2, 2, entry["name"])
         if "issuer" in entry:

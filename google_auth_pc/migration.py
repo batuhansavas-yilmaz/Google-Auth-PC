@@ -104,7 +104,7 @@ def _parse_entry(data: bytes) -> Account:
     if account_type not in _TYPES:
         raise MigrationParseError(f"Gecersiz hesap turu kodu: {account_type}")
     try:
-        secret = normalize_secret(_decode_text(secret_raw))
+        secret = normalize_secret(base64.b32encode(secret_raw).decode("ascii"))
     except ValueError as exc:
         raise MigrationParseError(f"Gecersiz secret: {exc}") from exc
 

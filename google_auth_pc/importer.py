@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from PIL import Image
+
 from google_auth_pc.migration import MigrationParseError, parse_migration_uri
 from google_auth_pc.models import Account
 
@@ -15,8 +17,7 @@ class ImportResult:
 
 
 def extract_migration_accounts(image_paths: list[Path]) -> ImportResult:
-    import cv2
-    import numpy as np
+    import zxingcpp
 
     accounts: list[Account] = []
     failed_files: list[Path] = []
@@ -29,19 +30,13 @@ def extract_migration_accounts(image_paths: list[Path]) -> ImportResult:
             if not path.is_file():
                 failed_files.append(path)
                 continue
-            data = path.read_bytes()
-            image = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
-            if image is None:
-                failed_files.append(path)
-                continue
-            ok, decoded_info, _points, _straight = cv2.QRCodeDetector().detectAndDecodeMulti(
-                image
-            )
+            with Image.open(path) as image:
+                results = zxingcpp.read_barcodes(image)
         except Exception:
             failed_files.append(path)
             continue
 
-        texts = [text for text in (decoded_info if ok else ()) if text]
+        texts = [result.text for result in results if result.text]
         if not texts:
             failed_files.append(path)
             continue

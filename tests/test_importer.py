@@ -1,3 +1,4 @@
+import base64
 import subprocess
 import sys
 
@@ -108,8 +109,32 @@ def test_non_ascii_path_yields_accounts(tmp_path):
     assert result.skipped_payloads == 0
 
 
-def test_importing_importer_does_not_load_cv2():
-    probe = "import sys; import google_auth_pc.importer; assert 'cv2' not in sys.modules"
+def test_dense_migration_qr_with_many_accounts_decodes(tmp_path):
+    secrets = [
+        base64.b32encode(f"dense-{index:02d}".encode().ljust(20, b"x")).decode()
+        for index in range(10)
+    ]
+    entries = [
+        entry(secret, f"user{index}@example.com", "Example Service")
+        for index, secret in enumerate(secrets)
+    ]
+    uri = build_migration_uri(entries)
+    path = tmp_path / "yogun.png"
+    segno.make(uri, micro=False, error="l", boost_error=False).save(path, scale=4)
+    result = importer.extract_migration_accounts([path])
+    assert result.accounts == [
+        acc(secret, f"user{index}@example.com", "Example Service")
+        for index, secret in enumerate(secrets)
+    ]
+    assert result.failed_files == []
+    assert result.skipped_payloads == 0
+
+
+def test_importing_importer_does_not_load_zxingcpp():
+    probe = (
+        "import sys; import google_auth_pc.importer; "
+        "assert 'zxingcpp' not in sys.modules"
+    )
     completed = subprocess.run(
         [sys.executable, "-c", probe], capture_output=True, text=True
     )

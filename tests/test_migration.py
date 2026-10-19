@@ -1,3 +1,5 @@
+import base64
+
 import pytest
 
 from google_auth_pc.models import Account
@@ -56,7 +58,7 @@ def test_hotp_type_and_counter():
 
 def test_payload_metadata_and_unknown_entry_fields_are_skipped():
     entry_bytes = (
-        field(1, 2, SECRET_A.encode("ascii"))
+        field(1, 2, base64.b32decode(SECRET_A))
         + field(2, 2, "alice@example.com")
         + field(3, 2, "Example")
         + field(4, 0, 1)
@@ -75,6 +77,15 @@ def test_payload_metadata_and_unknown_entry_fields_are_skipped():
     assert migration.parse_migration_payload(payload) == [
         Account(secret=SECRET_A, name="alice@example.com", issuer="Example")
     ]
+
+
+def test_raw_binary_secret_field_decodes_to_base32():
+    entry_bytes = field(1, 2, base64.b32decode(SECRET_B)) + field(
+        2, 2, "alice@example.com"
+    )
+    payload = field(1, 2, entry_bytes)
+    (account,) = migration.parse_migration_payload(payload)
+    assert account.secret == SECRET_B
 
 
 def test_corrupt_base64_raises():
